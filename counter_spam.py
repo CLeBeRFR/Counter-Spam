@@ -16,6 +16,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
+JUNK_FOLDER_NAME = "JUNK"
+
 def save_imap_credentials(filename):
     imap_server = input("IMAP Server: ")
     smtp_server = input("SMTP Server: ")
@@ -114,19 +116,20 @@ def send_email(receivers, subject, message, attachment_path):
     email.attach(file_part)
 
     # Send the email
-    smtp_server.send_message(email)
+    try:
+        smtp_server.send_message(email)
+    except Exception as exception_content:
+        print("impossible to send the mail: ", exception_content)
 
     # Disconnect from the server
     smtp_server.quit()
     
 def listFolders(imap):
-    #print("Available folders:")
     status, folders = imap.list()
 
     if status == 'OK':
         for folder in folders:
             folder_name = folder.decode('utf-8').split()[-1]
-            #print("- " + folder_name)
 
 
 def establishConnection():
@@ -306,23 +309,27 @@ def get_spammer_smtp(msg, response):
         except LookupError:
             subject = subject.decode('utf-8', errors='replace')
 
-
     # Regex pattern to match the value after "helo="
     helo_pattern = r"helo=(.*?);"
 
     # Search for the patterns in the content
     helo_match = re.search(helo_pattern, str(content))
+    helo_value = None
     if helo_match is not None:
         helo_value = helo_match.group(1)
     else:
-        content = decode_header(msg['Authentication-Results'])[0]
+        content = ""
+        try:
+            content = decode_header(msg['Authentication-Results'])[0]
+        except:
+            pass
         helo_pattern = r"smtp.mailfrom=(.*?);"
-        helo_match = re.search(helo_pattern, str(content))
-        helo_value = helo_match.group(1)
+        if content is not None and len(content) != 0:
+            helo_match = re.search(helo_pattern, str(content))
+            helo_value = helo_match.group(1)
     return helo_value
 
 def get_spammer_server(msg, response):
-    #print(msg)
     try:
         content = decode_header(msg['Authentication-Results'])[0]
     except:
@@ -369,7 +376,7 @@ def iterate_over_mails(imap):
     Iterates over emails in the specified folder and performs actions on each email.
     :param imap: The IMAP object.
     """
-    status, messages = imap.select("Junk")
+    status, messages = imap.select(JUNK_FOLDER_NAME)
     # Total number of emails
     total_messages = int(messages[0])
     N = 999999  # This value must be the number of mails in the specified folder.
@@ -392,7 +399,6 @@ def iterate_over_mails(imap):
                 abuse_emails_list = get_abuse_mail(mail_author)
                 spammer_smtp = ""
                 subject = 'Report: Unsolicited Email from Suspicious Domain'
-
                 if len(abuse_emails_list) == 0:
                     print("No abuse report address was found for the sender. Trying to detect SMTP directly...")
                     spammer_smtp = get_spammer_smtp(msg, response)
@@ -412,7 +418,6 @@ def iterate_over_mails(imap):
                     if len(abuse_emails_list) == 0:
                         print("❌ It has not been possible to find email abuse for the spammer SMTP or spammer server.")
                         continue
-
                     # Note: No get_domain_from_mail(mail_author) for the first parameter because mail is usurpated.
                     message = generate_mail_to_send(spammer_smtp, mail_author, subject, spammer_smtp, date_mail, path_attachment)
                 else:
@@ -429,7 +434,6 @@ def iterate_over_mails(imap):
 
 
 def get_domain_from_mail(mail_address):
-    print("DEBUG 1", mail_address)
     # Regular expression pattern to match email-like patterns
     pattern = r'[\w\.-]+@([\w\.-]+)'
     # Find all matches of the pattern in the string
@@ -445,7 +449,6 @@ def get_abuse_mail(spammer_mail_address_or_IP):
     :return: A list of abuse mail addresses.
     """
     spammer_domain_whois = None
-
     if "@" in spammer_mail_address_or_IP:
         spammer_domain_whois = whois.query(get_domain_from_mail(spammer_mail_address_or_IP))
     else:
@@ -455,10 +458,10 @@ def get_abuse_mail(spammer_mail_address_or_IP):
             print(f"❌ Impossible to make a WHOIS request for IP {spammer_mail_address_or_IP} because the TLD is not supported by the python module whois.")
 
     abuse_emails_list = []
-
     if spammer_domain_whois is not None:
-        for email in spammer_domain_whois.emails:
-            abuse_emails_list.append(email)
+        if "@" in spammer_domain_whois.emails[0]:
+            for email in spammer_domain_whois.emails:
+                abuse_emails_list.append(email)
 
     return abuse_emails_list
 
