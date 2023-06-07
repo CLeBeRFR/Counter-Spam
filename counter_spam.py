@@ -16,7 +16,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
-JUNK_FOLDER_NAME = "JUNK"
+JUNK_FOLDER_NAME = "Junk"
 
 def save_imap_credentials(filename):
     imap_server = input("IMAP Server: ")
@@ -299,35 +299,43 @@ def get_abuse_mail_with_report_abuse_to_header(msg, response):
     return report_mail
 
 def get_spammer_smtp(msg, response):
+    """
+    Extracts the SMTP information related to a spammer from the email message headers.
+    Args:
+        msg (email.message.Message): The email message object.
+        response: Unused argument.
+
+    Returns:
+        str: The value of the SMTP information (helo value or smtp.mailfrom value)
+        associated with the spammer, or None if not found.
+    """
+    search_content = get_value_from_regex(msg, "Received-SPF", r"helo=(.*?);")
+
+    if search_content is None:
+        search_content = get_value_from_regex(msg, "Authentication-Results", r"smtp.mailfrom=(.*?);")
+
+    return search_content
+
+def get_value_from_regex(msg, searched_header, searched_regex):
     try:
-        content, encoding = decode_header(msg["Received-SPF"])[0]
+        content, encoding = decode_header(msg[searched_header])[0]
     except:
         return None
+
     if isinstance(content, bytes):
         try:
             content = content.decode(encoding)
         except LookupError:
             subject = subject.decode('utf-8', errors='replace')
 
-    # Regex pattern to match the value after "helo="
-    helo_pattern = r"helo=(.*?);"
-
     # Search for the patterns in the content
-    helo_match = re.search(helo_pattern, str(content))
-    helo_value = None
-    if helo_match is not None:
-        helo_value = helo_match.group(1)
-    else:
-        content = ""
-        try:
-            content = decode_header(msg['Authentication-Results'])[0]
-        except:
-            pass
-        helo_pattern = r"smtp.mailfrom=(.*?);"
-        if content is not None and len(content) != 0:
-            helo_match = re.search(helo_pattern, str(content))
-            helo_value = helo_match.group(1)
-    return helo_value
+    match = re.search(searched_regex, str(content))
+    if match is not None and len(content) != 0:
+        match_value = match.group(1)
+        print("FOUND",match_value)
+        return match_value
+    return None
+
 
 def get_spammer_server(msg, response):
     try:
@@ -355,7 +363,7 @@ def write_mail_to_disk(msg, response):
     """
     msg = email.message_from_bytes(response[1])
     filename = get_mail_subject(msg, response)
-    path = filename + ".eml"
+    path = "/tmp/" + filename + ".eml"
 
     try:
         with open(path, 'wb') as f:
