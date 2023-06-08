@@ -210,34 +210,6 @@ def getContentOfMessage(msg):
         webbrowser.open(filepath)
     print("="*100)
 
-def get_mail_from(msg, response):
-    """
-    Retrieves the email sender from the 'From' header in the message.
-    :param msg: The message object.
-    :param response: The response object.
-    :return: The email sender.
-    """
-    # Decode the email sender
-    sender_info = decode_header(msg.get("From"))[0]
-    sender = sender_info[0]
-    encoding = sender_info[1]
-
-    if isinstance(sender, bytes):
-        # Decode bytes to string using the specified encoding
-        try:
-            if encoding:
-                sender = sender.decode(encoding)
-            else:
-                sender = sender.decode('utf-8', errors='replace')
-        except LookupError:
-            sender = sender.decode('utf-8', errors='replace')
-    else:
-        sender = str(sender)
-
-    return sender
-
-
-
 def get_mail_subject(msg, response):
     """
     Retrieves the email subject from the 'Subject' header in the message.
@@ -321,13 +293,14 @@ def get_value_from_regex(msg, searched_header, searched_regex):
         content, encoding = decode_header(msg[searched_header])[0]
     except:
         return None
-
     if isinstance(content, bytes):
         try:
             content = content.decode(encoding)
         except LookupError:
             subject = subject.decode('utf-8', errors='replace')
-
+    if searched_regex is None:
+        return content
+    
     # Search for the patterns in the content
     match = re.search(searched_regex, str(content))
     if match is not None and len(content) != 0:
@@ -401,7 +374,7 @@ def iterate_over_mails(imap):
             if isinstance(response, tuple):
                 msg = email.message_from_bytes(response[1])
                 path_attachment = write_mail_to_disk(msg, response)
-                mail_author = get_mail_from(msg, response)
+                mail_author = get_value_from_regex(msg, "From", None)
                 date_mail = get_mail_date(msg, response)
 
                 abuse_emails_list = get_abuse_mail(mail_author)
