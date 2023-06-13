@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
-import os
-import re
-import json
-import smtplib
-import webbrowser
-import imaplib
-import email.charset
-import email
-import ipaddress
-import whois
-import getpass
-from datetime import datetime
-from email.header import decode_header
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import smtplib
+import os
+import json
+import imaplib
+import email
+import re
+import whois
+from email.header import decode_header
 
 JUNK_FOLDER_NAME = "Junk"
+DEBUG_MODE = False
+EML_OUTPUT_PATH = "/tmp/"
+
 
 def save_imap_credentials(filename):
+    """
+    Prompts the user for IMAP and SMTP server details, as well as IMAP username and password,
+    and saves them to a file in JSON format.
+
+    Args:
+        filename (str): The name of the file to save the credentials to.
+    """
     imap_server = input("IMAP Server: ")
     smtp_server = input("SMTP Server: ")
     imap_username = input("IMAP Username: ")
@@ -33,31 +38,62 @@ def save_imap_credentials(filename):
 
     with open(filename, "w") as file:
         json.dump(credentials, file)
+
     print(f"Credentials saved to {filename}.")
 
+
 def load_imap_credentials():
+    """
+    Loads IMAP credentials from a JSON file if it exists and is not empty,
+    otherwise prompts the user to save the credentials to the file.
+
+    Returns:
+        dict or None: The loaded credentials as a dictionary, or None if the file doesn't exist or is empty.
+    """
     # Filename to store the IMAP credentials
     credential_file = "imap_credentials.json"
 
-    if os.path.exists(credential_file) and os.path.getsize(credential_file) > 0:
+    if os.path.exists(credential_file) and os.path.getsize(
+            credential_file) > 0:
         try:
             with open(credential_file, "r") as file:
                 credentials = json.load(file)
                 return credentials
         except FileNotFoundError:
-                print(f"File '{credential_file}' not found.")
+            print(f"File '{credential_file}' not found.")
         except json.JSONDecodeError:
-                print(f"Invalid JSON format in '{credential_file}'.")
+            print(f"Invalid JSON format in '{credential_file}'.")
         return None
     else:
         # Save IMAP credentials to a file
         save_imap_credentials(credential_file)
         # Load IMAP credentials from the file
         credentials = load_imap_credentials()
+        return credentials
 
 
+def generate_mail_to_send(
+        spammer_domain,
+        spammer_mail,
+        spam_subject,
+        spammer_smtp,
+        spam_date,
+        spam_filename):
+    """
+    Generates a report email to be sent regarding a suspicious email believed to be spam.
 
-def generate_mail_to_send(spammer_domain, spammer_mail, spam_subject, spammer_smtp, spam_date, spam_filename):
+    Args:
+        spammer_domain (str): The domain from which the suspicious email originated.
+        spammer_mail (str): The sender of the suspicious email.
+        spam_subject (str): The subject of the suspicious email.
+        spammer_smtp (str): The SMTP server associated with the suspicious email.
+        spam_date (str): The date and time the suspicious email was received.
+        spam_filename (str): The name of the file containing the suspicious email.
+
+    Returns:
+        str: The generated report email as a string.
+    """
+
     REPORT_TEXT = f"""
 Dear Madam, Dear Sir,
 I am writing to report an unsolicited email that I received, which I believe to be spam.
@@ -81,7 +117,15 @@ Best regards.
 
 
 def send_email(receivers, subject, message, attachment_path):
-    
+    """
+    Sends an email with optional attachment to the specified receivers.
+
+    Args:
+        receivers (str or list): The email addresses of the receivers.
+        subject (str): The subject of the email.
+        message (str): The body of the email.
+        attachment_path (str): The file path of the attachment, if any.
+    """
     # Connect to the SMTP server
     credentials = load_imap_credentials()
     if credentials:
@@ -92,7 +136,6 @@ def send_email(receivers, subject, message, attachment_path):
     smtp_server = smtplib.SMTP(smtp_server, 587)
     smtp_server.starttls()  # Enable TLS encryption
     smtp_server.login(username, password)
-
 
     # Create a multipart message
     email = MIMEMultipart()
@@ -112,27 +155,49 @@ def send_email(receivers, subject, message, attachment_path):
         file_part = MIMEApplication(attachment.read())
 
     # Set the filename in the attachment
-    file_part.add_header('Content-Disposition', 'attachment', filename=attachment_path)
+    file_part.add_header(
+        'Content-Disposition',
+        'attachment',
+        filename=attachment_path)
     email.attach(file_part)
 
     # Send the email
     try:
+        if DEBUG_MODE:
+            raise RuntimeError("Debug mode enabled")
         smtp_server.send_message(email)
     except Exception as exception_content:
-        print("impossible to send the mail: ", exception_content)
+        print("⚠️ Unable to send the email:", exception_content)
 
     # Disconnect from the server
     smtp_server.quit()
-    
-def listFolders(imap):
+
+
+def list_folders(imap):
+    """
+    Lists the folders in the IMAP mailbox.
+
+    Args:
+        imap: The IMAP client instance.
+
+    Returns:
+        list: A list of folder names.
+    """
     status, folders = imap.list()
 
     if status == 'OK':
         for folder in folders:
             folder_name = folder.decode('utf-8').split()[-1]
+            # Process each folder name as needed
 
 
-def establishConnection():
+def establish_connection():
+    """
+    Establishes a connection to the IMAP server and performs authentication.
+
+    Returns:
+        imaplib.IMAP4_SSL: The IMAP client instance.
+    """
     credentials = load_imap_credentials()
     imap_server = ""
 
@@ -141,81 +206,102 @@ def establishConnection():
         username = credentials.get("username")
         password = credentials.get("password")
 
-    # Connexion au serveur IMAP
+    # Connection to the IMAP server
     imap = imaplib.IMAP4_SSL(imap_server, 993)
 
-    # Authentification
+    # Authentication
     try:
         imap.login(username, password)
         print("✅ The authentication process has been successfully completed.")
-    except:
+    except BaseException:
         print("❌ An issue occurred during the authentication process.")
         exit(0)
     return imap
 
-def closeConnection(imap):
-    # Fermeture de la connexion
+
+def close_connection(imap):
+    """
+    Closes the connection to the IMAP server.
+
+    Args:
+        imap: The IMAP client instance.
+    """
+    # Closing the connection
     imap.logout()
     print("Connection closed...")
 
-def getContentOfMessage(msg):
-    # if the email message is multipart
+
+def get_content_of_message(msg):
+    """
+    Retrieves and processes the content of an email message.
+
+    Args:
+        msg: The email message.
+
+    """
+    content_type = ""
+    # If the email message is multipart
     if msg.is_multipart():
-        # iterate over email parts
+        # Iterate over email parts
         for part in msg.walk():
-            # extract content type of email
+            # Extract content type of email
             content_type = part.get_content_type()
             content_disposition = str(part.get("Content-Disposition"))
             try:
-                # get the email body
+                # Get the email body
                 body = part.get_payload(decode=True).decode()
-            except:
+            except BaseException:
                 pass
             if content_type == "text/plain" and "attachment" not in content_disposition:
-                # print text/plain emails and skip attachments
+                # Print text/plain emails and skip attachments
                 print(body)
             elif "attachment" in content_disposition:
                 print("Attachment detected")
                 """
-                # download attachment
+                # Download attachment
                 filename = part.get_filename()
                 if filename:
                     folder_name = clean(subject)
                     if not os.path.isdir(folder_name):
-                        # make a folder for this email (named after the subject)
+                        # Make a folder for this email (named after the subject)
                         os.mkdir(folder_name)
                     filepath = os.path.join(folder_name, filename)
-                    # download attachment and save it
+                    # Download attachment and save it
                     open(filepath, "wb").write(part.get_payload(decode=True))
                 """
     else:
-        # extract content type of email
+        # Extract content type of email
         content_type = msg.get_content_type()
-        # get the email body
+        # Get the email body
         body = msg.get_payload(decode=True).decode()
         if content_type == "text/plain":
-            # print only text email parts
+            # Print only text email parts
             print(body)
     if content_type == "text/html":
-        # if it's HTML, create a new HTML file and open it in browser
+        # If it's HTML, create a new HTML file and open it in a browser
         folder_name = clean(subject)
         if not os.path.isdir(folder_name):
-            # make a folder for this email (named after the subject)
+            # Make a folder for this email (named after the subject)
             os.mkdir(folder_name)
         filename = "index.html"
         filepath = os.path.join(folder_name, filename)
-        # write the file
+        # Write the file
         open(filepath, "w").write(body)
-        # open in the default browser
+        # Open in the default browser
         webbrowser.open(filepath)
-    print("="*100)
+    print("=" * 100)
+
 
 def get_mail_subject(msg, response):
     """
     Retrieves the email subject from the 'Subject' header in the message.
-    :param msg: The message object.
-    :param response: The response object.
-    :return: The email subject.
+
+    Args:
+        msg: The message object.
+        response: The response object.
+
+    Returns:
+        The email subject.
     """
     # Decode the email subject
     subject, encoding = decode_header(msg["Subject"])[0]
@@ -226,7 +312,7 @@ def get_mail_subject(msg, response):
             encoding = 'utf-8'
         try:
             subject = str(subject, encoding, errors='replace')
-        except:
+        except BaseException:
             print("Error in decoding subject")
             subject = "Error in decoding subject"
     else:
@@ -238,27 +324,35 @@ def get_mail_subject(msg, response):
 def get_mail_date(msg, response):
     """
     Retrieves the mail sending date from the 'Date' header in the message.
-    :param msg: The message object.
-    :param response: The response object.
-    :return: The mail sending date.
+
+    Args:
+        msg: The message object.
+        response: The response object.
+
+    Returns:
+        The mail sending date.
     """
     # Retrieve the mail sending date
     date_mail, encoding = decode_header(msg["Date"])[0]
     return date_mail
 
-    
+
 def get_abuse_mail_with_report_abuse_to_header(msg, response):
     """
     Extracts the abuse mail address from the 'X-REPORT-ABUSE-TO' header in the message.
-    :param msg: The message object.
-    :param response: The response object.
-    :return: A list containing the extracted abuse mail address, or an empty list if not found.
+
+    Args:
+        msg (Message): The message object.
+        response (Response): The response object.
+
+    Returns:
+        list: A list containing the extracted abuse mail address, or an empty list if not found.
     """
     try:
-        decode_header, encoding(msg['X-REPORT-ABUSE-TO'])[0]
-    except:
-        print("No header X-REPORT-ABUSE-TO")
-        return   # No 'X-REPORT-ABUSE-TO' header found
+        decode_header(msg['X-REPORT-ABUSE-TO'])[0]
+    except KeyError:
+        print("No 'X-REPORT-ABUSE-TO' header")
+        return []  # No 'X-REPORT-ABUSE-TO' header found
 
     content = decode_header(msg['X-REPORT-ABUSE-TO'])[0]
     email_pattern = r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\.[A-Za-z]{2,})?)\b'
@@ -270,52 +364,85 @@ def get_abuse_mail_with_report_abuse_to_header(msg, response):
 
     return report_mail
 
+
 def get_spammer_smtp(msg, response):
     """
     Extracts the SMTP information related to a spammer from the email message headers.
+
     Args:
         msg (email.message.Message): The email message object.
         response: Unused argument.
 
     Returns:
         str: The value of the SMTP information (helo value or smtp.mailfrom value)
-        associated with the spammer, or None if not found.
+             associated with the spammer, or None if not found.
     """
+    # Search for the helo value in the 'Received-SPF' header
     search_content = get_value_from_regex(msg, "Received-SPF", r"helo=(.*?);")
 
     if search_content is None:
-        search_content = get_value_from_regex(msg, "Authentication-Results", r"smtp.mailfrom=(.*?);")
+        # If helo value is not found, search for smtp.mailfrom value in
+        # 'Authentication-Results' header
+        search_content = get_value_from_regex(
+            msg, "Authentication-Results", r"smtp.mailfrom=(.*?);")
 
     return search_content
 
+
 def get_value_from_regex(msg, searched_header, searched_regex):
+    """
+    Extracts a value from the message header using a regular expression pattern.
+
+    Args:
+        msg (email.message.Message): The email message object.
+        searched_header (str): The header to search for.
+        searched_regex (str): The regular expression pattern to search for.
+
+    Returns:
+        str or None: The extracted value if found, or None if not found.
+    """
     try:
         content, encoding = decode_header(msg[searched_header])[0]
-    except:
+    except KeyError:
         return None
+
     if isinstance(content, bytes):
         try:
             content = content.decode(encoding)
-        except LookupError:
-            subject = subject.decode('utf-8', errors='replace')
+        except BaseException:
+            # If encoding lookup fails, replace the decoding errors with
+            # Unicode replacement characters
+            content = content.decode('utf-8', errors='replace')
+
     if searched_regex is None:
         return content
-    
+
     # Search for the patterns in the content
     match = re.search(searched_regex, str(content))
     if match is not None and len(content) != 0:
         match_value = match.group(1)
-        print("FOUND",match_value)
+        print("FOUND", match_value)
         return match_value
+
     return None
 
 
 def get_spammer_server(msg, response):
+    """
+    Extracts the IP address of the spammer server from the 'Authentication-Results' header.
+
+    Args:
+        msg (email.message.Message): The email message object.
+        response: Unused argument.
+
+    Returns:
+        str or None: The IP address of the spammer server if found, or None if not found.
+    """
     try:
         content = decode_header(msg['Authentication-Results'])[0]
-    except:
+    except KeyError:
         return None
-    
+
     regex = r'(?<=sender IP is )\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
     match = re.search(regex, str(content))
 
@@ -325,42 +452,47 @@ def get_spammer_server(msg, response):
     else:
         print("No IP address found for the spammer server")
         return None
-        
+
 
 def write_mail_to_disk(msg, response):
     """
     Writes the email message to disk.
-    :param msg: The message object.
-    :param response: The response object.
-    :return: The file path of the saved message.
+
+    Args:
+        msg (email.message.Message): The message object.
+        response: The response object.
+
+    Returns:
+        str: The file path of the saved message.
     """
     msg = email.message_from_bytes(response[1])
     filename = get_mail_subject(msg, response)
-    path = "/tmp/" + filename + ".eml"
+    path = EML_OUTPUT_PATH + filename + ".eml"
 
     try:
         with open(path, 'wb') as f:
             f.write(response[1])
             print("🖊️  New message written to disk: " + filename)
     except OSError as exc:
-        if exc.errno == 36:
-            print("Name too long, renaming...")
-            path = "renamed_message.eml"
-            with open(path, 'wb') as f:
-                f.write(response[1])
-                print("🖊️  New message written to disk: " + filename)
-    
+        path = EML_OUTPUT_PATH + "renamed_message.eml"
+        with open(path, 'wb') as f:
+            f.write(response[1])
+            print("🖊️  New message written to disk: " + filename)
     return path
+
 
 def iterate_over_mails(imap):
     """
     Iterates over emails in the specified folder and performs actions on each email.
-    :param imap: The IMAP object.
+
+    Args:
+        imap: The IMAP object.
     """
     status, messages = imap.select(JUNK_FOLDER_NAME)
     # Total number of emails
     total_messages = int(messages[0])
-    N = 999999  # This value must be the number of mails in the specified folder.
+    # This value must be the number of mails in the specified folder.
+    N = 999999
 
     for i in range(total_messages, total_messages - N, -1):
         # Fetch the email message by ID
@@ -380,29 +512,40 @@ def iterate_over_mails(imap):
                 abuse_emails_list = get_abuse_mail(mail_author)
                 spammer_smtp = ""
                 subject = 'Report: Unsolicited Email from Suspicious Domain'
+
                 if len(abuse_emails_list) == 0:
-                    print("No abuse report address was found for the sender. Trying to detect SMTP directly...")
+                    print(
+                        "No abuse report address was found for the sender. Trying to detect SMTP directly...")
                     spammer_smtp = get_spammer_smtp(msg, response)
                     spammer_server_ip = get_spammer_server(msg, response)
                     abuse_emails_list = []
+
                     if spammer_smtp is not None:
                         abuse_emails_list.extend(get_abuse_mail(spammer_smtp))
 
                     if spammer_server_ip is not None:
-                        abuse_emails_list.extend(get_abuse_mail(spammer_server_ip))  # Merge the both lists.
-                        
+                        # Merge the both lists.
+                        abuse_emails_list.extend(
+                            get_abuse_mail(spammer_server_ip))
+
                     if spammer_server_ip is None and spammer_smtp is None:
-                        abuse_mail_returned = get_abuse_mail_with_report_abuse_to_header(msg, response)
+                        abuse_mail_returned = get_abuse_mail_with_report_abuse_to_header(
+                            msg, response)
                         if abuse_mail_returned is not None:
                             abuse_emails_list.append(abuse_mail_returned)
 
                     if len(abuse_emails_list) == 0:
-                        print("❌ It has not been possible to find email abuse for the spammer SMTP or spammer server.")
+                        print(
+                            "❌ It has not been possible to find email abuse for the spammer SMTP or spammer server.")
                         continue
-                    # Note: No get_domain_from_mail(mail_author) for the first parameter because mail is usurpated.
-                    message = generate_mail_to_send(spammer_smtp, mail_author, subject, spammer_smtp, date_mail, path_attachment)
+
+                    # Note: No get_domain_from_mail(mail_author) for the first
+                    # parameter because mail is usurpated.
+                    message = generate_mail_to_send(
+                        spammer_smtp, mail_author, subject, spammer_smtp, date_mail, path_attachment)
                 else:
-                    message = generate_mail_to_send(spammer_smtp, mail_author, subject, spammer_smtp, date_mail, path_attachment)
+                    message = generate_mail_to_send(
+                        spammer_smtp, mail_author, subject, spammer_smtp, date_mail, path_attachment)
 
                 print("✉️  An abuse report will be sent to the following email:")
                 for abuse_email in abuse_emails_list:
@@ -415,6 +558,15 @@ def iterate_over_mails(imap):
 
 
 def get_domain_from_mail(mail_address):
+    """
+    Extracts the domain from an email address.
+
+    Args:
+        mail_address (str): The email address.
+
+    Returns:
+        str: The domain extracted from the email address.
+    """
     # Regular expression pattern to match email-like patterns
     pattern = r'[\w\.-]+@([\w\.-]+)'
     # Find all matches of the pattern in the string
@@ -423,22 +575,31 @@ def get_domain_from_mail(mail_address):
     spammer_domain = match.group(1)
     return spammer_domain
 
+
 def get_abuse_mail(spammer_mail_address_or_IP):
     """
     Retrieves abuse mail addresses associated with the provided spammer mail address or IP.
-    :param spammer_mail_address_or_IP: The spammer mail address or IP.
-    :return: A list of abuse mail addresses.
+
+    Args:
+        spammer_mail_address_or_IP (str): The spammer mail address or IP.
+
+    Returns:
+        list: A list of abuse mail addresses.
     """
     spammer_domain_whois = None
+
     if "@" in spammer_mail_address_or_IP:
-        spammer_domain_whois = whois.query(get_domain_from_mail(spammer_mail_address_or_IP))
+        spammer_domain_whois = whois.query(
+            get_domain_from_mail(spammer_mail_address_or_IP))
     else:
         try:
             spammer_domain_whois = whois.query(spammer_mail_address_or_IP)
         except Exception:
-            print(f"❌ Impossible to make a WHOIS request for IP {spammer_mail_address_or_IP} because the TLD is not supported by the python module whois.")
+            print(
+                f"❌ Impossible to make a WHOIS request for IP {spammer_mail_address_or_IP} because the TLD is not supported by the python module whois.")
 
     abuse_emails_list = []
+
     if spammer_domain_whois is not None:
         if "@" in spammer_domain_whois.emails[0]:
             for email in spammer_domain_whois.emails:
@@ -448,7 +609,14 @@ def get_abuse_mail(spammer_mail_address_or_IP):
 
 
 if __name__ == '__main__':
-    imap = establishConnection()
-    listFolders(imap)
+    # Establish IMAP connection
+    imap = establish_connection()
+
+    # List folders
+    list_folders(imap)
+
+    # Iterate over emails
     iterate_over_mails(imap)
-    closeConnection(imap)
+
+    # Close IMAP connection
+    close_connection(imap)
