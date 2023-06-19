@@ -161,16 +161,40 @@ def send_email(receivers, subject, message, attachment_path):
         filename=attachment_path)
     email.attach(file_part)
 
+    is_sent = False
     # Send the email
     try:
         if DEBUG_MODE:
             raise RuntimeError("Debug mode enabled")
         smtp_server.send_message(email)
+        is_sent = True
     except Exception as exception_content:
         print("⚠️ Unable to send the email:", exception_content)
-
     # Disconnect from the server
     smtp_server.quit()
+    return is_sent
+
+def remove_junk_emails(imap):
+    """
+    Remove all emails from the Junk folder.
+
+    Args:
+        imap (IMAP4): An instance of the IMAP4 class representing the IMAP connection.
+
+    Returns:
+        None
+    """
+
+    # Search for all emails in the Junk folder
+    _, data = imap.search(None, 'ALL')
+    email_ids = data[0].split()
+
+    # Delete each email in the Junk folder
+    for email_id in email_ids:
+        imap.store(email_id, '+FLAGS', '\\Deleted')
+
+    # Permanently remove the deleted emails
+    imap.expunge()
 
 
 def list_folders(imap):
@@ -500,8 +524,7 @@ def iterate_over_mails(imap):
             res, msg = imap.fetch(str(i), "(RFC822)")
         except Exception:
             print("🧹 Email processing completed.")
-            exit(0)
-
+            return 0
         for response in msg:
             if isinstance(response, tuple):
                 msg = email.message_from_bytes(response[1])
@@ -552,7 +575,7 @@ def iterate_over_mails(imap):
                     print(abuse_email)
 
                 receivers = abuse_emails_list
-                send_email(receivers, subject, message, path_attachment)
+                is_sent = send_email(receivers, subject, message, path_attachment)
 
         print("=" * 100 + '\n')
 
@@ -617,6 +640,9 @@ if __name__ == '__main__':
 
     # Iterate over emails
     iterate_over_mails(imap)
+
+    # Remove all junk mails after processing
+    remove_junk_emails(imap)
 
     # Close IMAP connection
     close_connection(imap)
