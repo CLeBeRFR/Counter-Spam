@@ -1,4 +1,4 @@
-![Counter-Spam](./logo.png)
+![Counter-Spam](./logo.png){: width="256px" }
 # Email Spam Detection and Reporting
 This Python project provides functionality to detect and report suspicious emails believed to be spam. It allows users to connect to an IMAP server, analyze email messages, and generate reports to be sent to the appropriate authorities.
 
