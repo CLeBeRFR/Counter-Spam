@@ -12,6 +12,7 @@ import whois
 from email.header import decode_header
 
 JUNK_FOLDER_NAME = "Junk"
+REMOVE_JUNK_AFTER_PROCESSING = True
 DEBUG_MODE = False
 EML_OUTPUT_PATH = "/tmp/"
 
@@ -174,6 +175,7 @@ def send_email(receivers, subject, message, attachment_path):
     smtp_server.quit()
     return is_sent
 
+
 def remove_junk_emails(imap):
     """
     Remove all emails from the Junk folder.
@@ -184,6 +186,10 @@ def remove_junk_emails(imap):
     Returns:
         None
     """
+
+    if not REMOVE_JUNK_AFTER_PROCESSING:
+        print("🗑️  Junk are not deleted because functionnality not enabled.")
+        return 0
 
     # Search for all emails in the Junk folder
     _, data = imap.search(None, 'ALL')
@@ -361,34 +367,6 @@ def get_mail_date(msg, response):
     return date_mail
 
 
-def get_abuse_mail_with_report_abuse_to_header(msg, response):
-    """
-    Extracts the abuse mail address from the 'X-REPORT-ABUSE-TO' header in the message.
-
-    Args:
-        msg (Message): The message object.
-        response (Response): The response object.
-
-    Returns:
-        list: A list containing the extracted abuse mail address, or an empty list if not found.
-    """
-    try:
-        decode_header(msg['X-REPORT-ABUSE-TO'])[0]
-    except KeyError:
-        print("No 'X-REPORT-ABUSE-TO' header")
-        return []  # No 'X-REPORT-ABUSE-TO' header found
-
-    content = decode_header(msg['X-REPORT-ABUSE-TO'])[0]
-    email_pattern = r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\.[A-Za-z]{2,})?)\b'
-    report_match = re.search(email_pattern, str(content))
-    report_mail = []
-
-    if report_match:
-        report_mail.append(report_match.group(1))
-
-    return report_mail
-
-
 def get_spammer_smtp(msg, response):
     """
     Extracts the SMTP information related to a spammer from the email message headers.
@@ -403,7 +381,6 @@ def get_spammer_smtp(msg, response):
     """
     # Search for the helo value in the 'Received-SPF' header
     search_content = get_value_from_regex(msg, "Received-SPF", r"helo=(.*?);")
-
     if search_content is None:
         # If helo value is not found, search for smtp.mailfrom value in
         # 'Authentication-Results' header
@@ -425,10 +402,13 @@ def get_value_from_regex(msg, searched_header, searched_regex):
     Returns:
         str or None: The extracted value if found, or None if not found.
     """
+    content = None
     try:
         content, encoding = decode_header(msg[searched_header])[0]
     except KeyError:
         return None
+    except TypeError as e:
+        pass
 
     if isinstance(content, bytes):
         try:
@@ -442,40 +422,15 @@ def get_value_from_regex(msg, searched_header, searched_regex):
         return content
 
     # Search for the patterns in the content
-    match = re.search(searched_regex, str(content))
-    if match is not None and len(content) != 0:
-        match_value = match.group(1)
-        print("FOUND", match_value)
-        return match_value
+    try:
+        match = re.search(searched_regex, str(content))
+        if match is not None and len(content) != 0:
+            match_value = match.group(1)
+            return match_value
+    except Exception:
+        pass
 
     return None
-
-
-def get_spammer_server(msg, response):
-    """
-    Extracts the IP address of the spammer server from the 'Authentication-Results' header.
-
-    Args:
-        msg (email.message.Message): The email message object.
-        response: Unused argument.
-
-    Returns:
-        str or None: The IP address of the spammer server if found, or None if not found.
-    """
-    try:
-        content = decode_header(msg['Authentication-Results'])[0]
-    except KeyError:
-        return None
-
-    regex = r'(?<=sender IP is )\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}'
-    match = re.search(regex, str(content))
-
-    if match:
-        ip_address = match.group(0)
-        return ip_address
-    else:
-        print("No IP address found for the spammer server")
-        return None
 
 
 def write_mail_to_disk(msg, response):
@@ -513,8 +468,16 @@ def iterate_over_mails(imap):
         imap: The IMAP object.
     """
     status, messages = imap.select(JUNK_FOLDER_NAME)
-    # Total number of emails
-    total_messages = int(messages[0])
+
+    total_messages = 0
+    try:
+        # Total number of emails
+        total_messages = int(messages[0])
+    except BaseException:
+        print("❌ Impossible to get number of messages. Maybe",
+              JUNK_FOLDER_NAME, "folder does not exists?")
+        exit(0)
+
     # This value must be the number of mails in the specified folder.
     N = 999999
 
@@ -531,7 +494,6 @@ def iterate_over_mails(imap):
                 path_attachment = write_mail_to_disk(msg, response)
                 mail_author = get_value_from_regex(msg, "From", None)
                 date_mail = get_mail_date(msg, response)
-
                 abuse_emails_list = get_abuse_mail(mail_author)
                 spammer_smtp = ""
                 subject = 'Report: Unsolicited Email from Suspicious Domain'
@@ -540,7 +502,10 @@ def iterate_over_mails(imap):
                     print(
                         "No abuse report address was found for the sender. Trying to detect SMTP directly...")
                     spammer_smtp = get_spammer_smtp(msg, response)
-                    spammer_server_ip = get_spammer_server(msg, response)
+                    spammer_server_ip = get_value_from_regex(
+                        msg,
+                        "Authentication-Results",
+                        r'(?<=sender IP is )\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
                     abuse_emails_list = []
 
                     if spammer_smtp is not None:
@@ -552,8 +517,10 @@ def iterate_over_mails(imap):
                             get_abuse_mail(spammer_server_ip))
 
                     if spammer_server_ip is None and spammer_smtp is None:
-                        abuse_mail_returned = get_abuse_mail_with_report_abuse_to_header(
-                            msg, response)
+                        abuse_mail_returned = get_value_from_regex(
+                            msg,
+                            "X-REPORT-ABUSE-TO",
+                            r'\b([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}(?:\.[A-Za-z]{2,})?)\b')
                         if abuse_mail_returned is not None:
                             abuse_emails_list.append(abuse_mail_returned)
 
@@ -573,9 +540,9 @@ def iterate_over_mails(imap):
                 print("✉️  An abuse report will be sent to the following email:")
                 for abuse_email in abuse_emails_list:
                     print(abuse_email)
-
                 receivers = abuse_emails_list
-                is_sent = send_email(receivers, subject, message, path_attachment)
+                is_sent = send_email(
+                    receivers, subject, message, path_attachment)
 
         print("=" * 100 + '\n')
 
@@ -610,7 +577,6 @@ def get_abuse_mail(spammer_mail_address_or_IP):
         list: A list of abuse mail addresses.
     """
     spammer_domain_whois = None
-
     if "@" in spammer_mail_address_or_IP:
         spammer_domain_whois = whois.query(
             get_domain_from_mail(spammer_mail_address_or_IP))
@@ -624,10 +590,12 @@ def get_abuse_mail(spammer_mail_address_or_IP):
     abuse_emails_list = []
 
     if spammer_domain_whois is not None:
-        if "@" in spammer_domain_whois.emails[0]:
-            for email in spammer_domain_whois.emails:
-                abuse_emails_list.append(email)
-
+        try:
+            if "@" in spammer_domain_whois.emails[0]:
+                for email in spammer_domain_whois.emails:
+                    abuse_emails_list.append(email)
+        except Exception:
+            pass
     return abuse_emails_list
 
 
