@@ -518,6 +518,16 @@ def iterate_over_mails(imap):
                         r'(?<=sender IP is )\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
                     abuse_emails_list = []
 
+                    try:
+                        dkim_domain = get_value_from_regex(
+                            msg,
+                            "DKIM-Signature",
+                            r'd=([\w\.-]+);')
+                        abuse_mail = get_abuse_mail(dkim_domain)
+                        abuse_emails_list.extend(abuse_mail)
+                    except:
+                        pass
+
                     if spammer_smtp is not None:
                         abuse_emails_list.extend(get_abuse_mail(spammer_smtp))
 
