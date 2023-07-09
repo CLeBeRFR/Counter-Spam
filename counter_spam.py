@@ -498,6 +498,16 @@ def iterate_over_mails(imap):
                 spammer_smtp = ""
                 subject = 'Report: Unsolicited Email from Suspicious Domain'
 
+                try:
+                    mail_smtp = get_value_from_regex(
+                        msg,
+                        "Authentication-Results",
+                        r'header\.i=([^;\s]+)')
+                    abuse_mail = get_abuse_mail(mail_smtp)
+                    abuse_emails_list.extend(abuse_mail)
+                except:
+                    pass
+                    
                 if len(abuse_emails_list) == 0:
                     print(
                         "No abuse report address was found for the sender. Trying to detect SMTP directly...")
