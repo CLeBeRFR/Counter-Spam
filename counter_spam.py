@@ -494,7 +494,7 @@ def iterate_over_mails(imap):
                 path_attachment = write_mail_to_disk(msg, response)
                 mail_author = get_value_from_regex(msg, "From", None)
                 date_mail = get_mail_date(msg, response)
-                abuse_emails_list = get_abuse_mail(mail_author)
+                abuse_emails_list = []
                 spammer_smtp = ""
                 subject = 'Report: Unsolicited Email from Suspicious Domain'
 
