@@ -9,7 +9,7 @@
 [![Release](https://img.shields.io/github/v/release/CLeBeRFR/Counter-Spam?sort=semver&color=2f5fd0)](https://github.com/CLeBeRFR/Counter-Spam/releases)
 [![Python](https://img.shields.io/badge/python-3.9%2B-2f5fd0?logo=python&logoColor=white)](https://www.python.org/)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2f5fd0)](#-quick-start)
-[![Tests](https://img.shields.io/badge/tests-1421%20passing-2f9e44)](#-development)
+[![Tests](https://img.shields.io/badge/tests-1426%20passing-2f9e44)](#-development)
 [![Code style](https://img.shields.io/badge/code%20style-PEP%208-2f9e44)](https://peps.python.org/pep-0008/)
 [![License](https://img.shields.io/github/license/CLeBeRFR/Counter-Spam?color=6c757d)](LICENSE)
 
@@ -162,13 +162,16 @@ counter-spam gui
 
 1. **Analyze**: starts on its own. Counter-Spam also reads the replies to
    your previous reports, so it knows which providers want a web form.
-2. **Review**: untick a recipient if needed, open *Show the messages and the
-   report* to read exactly what will be sent.
-3. **Send**: one confirmation, then every e-mail report goes out. A copy is
-   kept in your *Sent Items*.
+2. **Review**: the reports are split between those *sent by e-mail* and
+   those that need *a web form*. Untick a recipient if needed, open *Show the
+   messages and the report* to read exactly what will be sent.
+3. **Send**: the button stays at the bottom of the window. One
+   confirmation, then every ticked e-mail report goes out. A copy is kept in
+   your *Sent Items*.
 4. **Forms**: on cards marked *Web form only*, click **Fill in the form
    automatically**, check the form in the window that opens, solve the
-   CAPTCHA, submit it, then click **Mark as reported**.
+   CAPTCHA, submit it, then click **Mark as reported**. Other tools (copy
+   the report, download the `.eml` files...) are under *More options*.
 
 Spams already reported to a provider are never offered to it again.
 

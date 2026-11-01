@@ -101,3 +101,45 @@ def test_english_plural_and_empty_folder():
     script = code_of("app.js")
     assert '${count === 1 ? "" : "s"}' in script
     assert "The Junk folder is empty: nothing to report." in script
+
+
+def test_send_button_is_always_in_reach():
+    html = read("index.html")
+    assert re.search(r'<div class="sendbar" id="sendbar" hidden>\s*'
+                     r'<p id="selection" aria-live="polite"></p>\s*'
+                     r'<button type="button" class="primary" id="send">',
+                     html)
+    css = read("style.css")
+    sendbar = css[css.index(".sendbar {"):]
+    assert "position: sticky" in sendbar[:sendbar.index("}")]
+    # Author display rules must not reveal elements marked hidden.
+    assert "[hidden] { display: none !important; }" in css
+
+
+def test_reports_are_split_by_channel():
+    script = code_of("app.js")
+    assert '"Reports sent by e-mail"' in script
+    assert '"Reports through a web form"' in script
+    assert '"More options"' in script
+    assert 'button("Select all", () => selectAll(true)' in script
+
+
+def test_errors_are_shown_in_the_page():
+    assert "window.alert(" not in code_of("app.js")
+
+
+def test_sent_reports_cannot_be_sent_twice():
+    script = code_of("app.js")
+    results = script[script.index("function renderResults(state)"):]
+    results = results[:results.index("\n}\n")]
+    assert "sent.add(result.groupId)" in results
+    assert "selected.delete(result.groupId)" in results
+    assert "card.checkbox.disabled = true" in results
+
+
+def test_filling_the_form_instead_unticks_the_email():
+    script = code_of("app.js")
+    autofill = script[script.index("async function startAutofill("):]
+    autofill = autofill[:autofill.index("\n}\n")]
+    assert "setSelected(group, false)" in autofill
+    assert "mark.hidden = false" in autofill

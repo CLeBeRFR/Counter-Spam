@@ -212,22 +212,29 @@ def capture_interface(dark: bool) -> None:
 
         # Details of the first group: messages and report preview.
         driver.execute_script(
-            "const d = document.querySelector('.group details');"
+            "const d = document.querySelector('.group details:not(.more)');"
             "d.open = true; d.querySelector('.preview').scrollTop = 0;"
-            "document.querySelector('.group').scrollIntoView();")
+            "document.querySelector('.group').scrollIntoView();"
+            # The sticky send bar would cover the card.
+            "document.getElementById('sendbar').style.visibility = 'hidden';")
         time.sleep(0.4)
         driver.find_element("css selector", ".group") \
             .screenshot(str(OUTPUT / f"report-{suffix}.png"))
 
         # Fake sending (no network): one global confirmation, results.
-        driver.execute_script("document.querySelector('.group details')"
-                              ".open = false;")
+        driver.execute_script("document.querySelector("
+                              "'.group details:not(.more)').open = false;"
+                              "document.getElementById('sendbar')"
+                              ".style.visibility = '';")
         driver.find_element("id", "note").send_keys(
             "These messages keep coming every day.")
         driver.find_element("id", "send").click()
         driver.switch_to.alert.accept()
         section = driver.find_element("id", "sending")
-        driver.execute_script("arguments[0].scrollIntoView()", section)
+        driver.execute_script("arguments[0].scrollIntoView();"
+                              # The sticky send bar would cover the section.
+                              "document.getElementById('sendbar')"
+                              ".style.visibility = 'hidden';", section)
         wait_for(driver, "return document.getElementById('send-status')"
                          ".textContent.includes('report 3 of')")
         time.sleep(0.2)

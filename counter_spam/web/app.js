@@ -48,8 +48,13 @@ const token = (() => {
 })();
 
 const selected = new Set();
-const autofillStatus = new Map();
+const sent = new Set();
+// Per group: its card, checkbox and status line, to update them in place.
+const cards = new Map();
+// Errors of the last action, shown in the page instead of a pop-up.
+const actionErrors = { analyse: "", send: "" };
 let renderedPlanVersion = -1;
+let keepSelection = false;
 let pollTimer = null;
 let lastState = null;
 
@@ -115,6 +120,11 @@ function plural(count, word) {
 
 // -- rendering -------------------------------------------------------------
 
+function isBusy(state) {
+  return Boolean(state)
+    && (state.phase === "analysing" || state.phase === "sending");
+}
+
 function renderStatus(state) {
   document.getElementById("account").textContent =
     state.account ? `Signed in as ${state.account}` : "Not signed in";
@@ -129,32 +139,45 @@ function renderStatus(state) {
   if (analysing && total) {
     text += ` ${label} ${done}/${total}`;
   }
+  if (actionErrors.analyse) {
+    text = actionErrors.analyse;
+  }
   status.textContent = text;
-  status.classList.toggle("error", state.phase === "error");
+  status.classList.toggle("error",
+    state.phase === "error" || Boolean(actionErrors.analyse));
   progress.hidden = !analysing;
   progress.max = total || 1;
   progress.value = done;
-  document.getElementById("analyse").disabled = analysing
-    || state.phase === "sending";
+  const button = document.getElementById("analyse");
+  button.disabled = isBusy(state);
+  button.textContent = state.plan ? "Analyze again" : "Analyze";
   renderSendProgress(state);
   updateSendButton(state);
 }
 
-/** Progress of the sending, shown right under the "Send" button. */
+/** Progress of the sending, shown in the "Send" section. */
 function renderSendProgress(state) {
   const box = document.getElementById("send-progress");
   const bar = document.getElementById("send-bar");
   const text = document.getElementById("send-status");
   const { done, total, label } = state.progress;
+  text.classList.toggle("error", Boolean(actionErrors.send));
+  if (actionErrors.send) {
+    box.hidden = false;
+    bar.hidden = true;
+    text.textContent = actionErrors.send;
+    return;
+  }
+  bar.hidden = false;
   box.hidden = state.phase !== "sending" && state.phase !== "done";
   if (box.hidden) {
     return;
   }
   if (state.phase === "done") {
-    const sent = state.results.filter((result) => result.ok).length;
+    const ok = state.results.filter((result) => result.ok).length;
     bar.max = state.results.length || 1;
     bar.value = bar.max;
-    text.textContent = `${sent} of ${plural(state.results.length,
+    text.textContent = `${ok} of ${plural(state.results.length,
       "report")} sent.`;
   } else if (!total) {
     // Before the first e-mail: Microsoft may ask for the Mail.Send consent.
@@ -170,18 +193,30 @@ function renderSendProgress(state) {
   }
 }
 
+function setSelected(group, checked) {
+  const card = cards.get(group.id);
+  if (checked) {
+    selected.add(group.id);
+  } else {
+    selected.delete(group.id);
+  }
+  if (card && card.checkbox) {
+    card.checkbox.checked = checked;
+    card.node.classList.toggle("selected", checked);
+  }
+}
+
+function button(text, onclick, props = {}) {
+  return el("button", { type: "button", text, onclick, ...props });
+}
+
 function groupCard(group) {
   const checkbox = group.sendsEmail
     ? el("input", {
       type: "checkbox",
-      checked: selected.has(group.id),
       "aria-label": `Send the report to ${group.email}`,
       onchange: (event) => {
-        if (event.target.checked) {
-          selected.add(group.id);
-        } else {
-          selected.delete(group.id);
-        }
+        setSelected(group, event.target.checked);
         updateSendButton(lastState);
       },
     })
@@ -199,50 +234,50 @@ function groupCard(group) {
     group.kinds.map((kind) =>
       el("span", { class: "badge kind", text: KIND_LABELS[kind] || kind })));
 
+  const status = el("p", { class: "card-status", role: "status",
+    "aria-live": "polite", hidden: true });
+
+  // Only shown up front for providers that need their form; for the
+  // others it appears once the form has been filled in instead.
+  const mark = button("Mark as reported", () => markReported(group),
+    { title: "Use it once the web form is submitted: these spams will "
+      + "not be offered again for this provider.",
+    hidden: group.sendsEmail && !lastState.autofill[group.id] });
+
   const actions = el("div", { class: "actions" });
   if (group.formUrl) {
-    actions.append(
-      el("button", {
-        type: "button",
-        class: "primary",
-        text: "Fill in the form automatically",
+    actions.append(button(
+      group.sendsEmail ? "Fill in the web form instead"
+        : "Fill in the form automatically",
+      (event) => startAutofill(group, event.target, mark),
+      { class: group.sendsEmail ? "" : "primary",
         title: "Opens the form in a new browser window and fills it in. "
-          + "You review it, solve the CAPTCHA if any and submit it.",
-        onclick: (event) => startAutofill(group, event.target),
-      }),
-      el("button", {
-        type: "button",
-        text: "Open the form",
-        onclick: () => window.open(group.formUrl, "_blank",
-          "noopener,noreferrer"),
-      }),
-      el("button", {
-        type: "button",
-        text: "Copy the report",
-        onclick: (event) => copy(group.preview, event.target),
-      }),
-      el("button", {
-        type: "button",
-        text: "Copy IPs / domains",
-        onclick: (event) => copy(group.resources.join("\n"), event.target),
-      }),
-      el("a", {
-        class: "button",
-        href: `/api/eml?group=${encodeURIComponent(group.id)}` +
-          `&t=${encodeURIComponent(token)}`,
-        download: "counter-spam-messages.zip",
-        text: "Download the .eml files",
+          + "You review it, solve the CAPTCHA if any and submit it."
+          + (group.sendsEmail ? " The e-mail report is then unticked." : ""),
       }));
   }
-  if (!group.sendsEmail) {
-    actions.append(el("button", {
-      type: "button",
-      text: "Mark as reported",
-      title: "Use it once the web form is submitted: these spams will "
-        + "not be offered again for this provider.",
-      onclick: () => markReported(group),
-    }));
+  if (group.formUrl || !group.sendsEmail) {
+    actions.append(mark);
   }
+
+  const tools = group.formUrl
+    ? el("details", { class: "more" },
+      el("summary", { text: "More options" }),
+      el("div", { class: "actions" },
+        button("Open the form", () => window.open(group.formUrl, "_blank",
+          "noopener,noreferrer")),
+        button("Copy the report",
+          (event) => copy(group.preview, event.target)),
+        button("Copy IPs / domains",
+          (event) => copy(group.resources.join("\n"), event.target)),
+        el("a", {
+          class: "button",
+          href: `/api/eml?group=${encodeURIComponent(group.id)}` +
+            `&t=${encodeURIComponent(token)}`,
+          download: "counter-spam-messages.zip",
+          text: "Download the .eml files",
+        })))
+    : null;
 
   const messages = el("ol", { class: "messages" },
     group.messages.map((message) => el("li", {},
@@ -253,11 +288,8 @@ function groupCard(group) {
         text: message.findings.map(describeFinding).join(" · "),
       }))));
 
-  const status = el("p", { class: "autofill-status", role: "status",
-    "aria-live": "polite", hidden: true });
-  autofillStatus.set(group.id, status);
-
-  return el("article", { class: `group${group.optional ? " optional" : ""}` },
+  const node = el("article", { class: `group${group.optional
+    ? " optional" : ""}` },
     el("header", {},
       el("label", { class: "group-title" }, checkbox,
         el("span", {},
@@ -267,11 +299,14 @@ function groupCard(group) {
     formHint(group),
     actions,
     status,
+    tools,
     el("details", {},
       el("summary", { text: `Show the ${plural(group.count, "message")} and `
         + "the report" }),
       messages,
       el("pre", { class: "preview", text: group.preview })));
+  cards.set(group.id, { node, checkbox, status, badges });
+  return node;
 }
 
 function formBadge(group) {
@@ -292,37 +327,85 @@ function formHint(group) {
       class: "hint",
       text: `${group.formHint} `
         + (group.formUrl
-          ? "No e-mail will be sent: fill in the web form, then mark "
-            + "these spams as reported."
+          ? "Fill in the web form, then mark these spams as reported."
           : "No e-mail will be sent to this address."),
     });
   }
   return group.formUrl
     ? el("p", {
       class: "hint",
-      text: "This provider prefers its web form: the report is still "
-        + "e-mailed when the box is ticked, but filling in the form gets "
-        + "it handled faster. " + (group.formHint || ""),
+      text: "Its web form gets the report handled faster. "
+        + (group.formHint || ""),
     })
     : null;
+}
+
+/** One block of cards: the e-mail reports, or the web forms. */
+function groupList(title, help, groups, tools) {
+  return el("section", { class: "group-list" },
+    el("div", { class: "group-list-head" },
+      el("h3", { text: `${title} (${groups.length})` }),
+      tools),
+    el("p", { class: "hint", text: help }),
+    groups.map(groupCard));
+}
+
+function selectAll(checked) {
+  for (const group of lastState.plan.groups) {
+    if (group.sendsEmail && !sent.has(group.id)) {
+      setSelected(group, checked);
+    }
+  }
+  updateSendButton(lastState);
+}
+
+function renderSummary(plan) {
+  const byEmail = plan.groups.filter((group) => group.sendsEmail);
+  const byForm = plan.groups.length - byEmail.length;
+  let text = `${plural(plan.count, "spam message")} analyzed: `
+    + `${plural(byEmail.length, "report")} to send by e-mail`;
+  if (byForm) {
+    text += `, ${byForm} ${byForm === 1 ? "provider" : "providers"} `
+      + "to report through a web form";
+  }
+  const notes = [];
+  if (plan.alreadyReported) {
+    notes.push(`${plural(plan.alreadyReported, "report")} already sent `
+      + "before were skipped.");
+  }
+  if (plan.orphans.length) {
+    notes.push(`No abuse contact found for ${plural(plan.orphans.length,
+      "message")}.`);
+  }
+  if (plan.learned.length) {
+    notes.push("Learned from their replies: "
+      + plan.learned.map((item) => `${item.email} `
+        + (item.status === "bounced" ? "bounces" : "only accepts its web form"))
+        .join(", ") + ".");
+  }
+  const summary = document.getElementById("summary");
+  summary.replaceChildren(el("p", { text: `${text}.` }));
+  if (notes.length) {
+    summary.append(el("ul", { class: "notes" },
+      notes.map((note) => el("li", { text: note }))));
+  }
 }
 
 function renderPlan(state) {
   const section = document.getElementById("plan");
   const plan = state.plan;
   section.hidden = !plan;
-  document.getElementById("sending").hidden = !plan;
+  document.getElementById("sending").hidden = !plan || !plan.count;
   if (!plan || state.planVersion === renderedPlanVersion) {
     return;
   }
   renderedPlanVersion = state.planVersion;
+  // After "Mark as reported", the other cards keep the user's choices.
+  const previous = keepSelection ? new Set(selected) : null;
+  keepSelection = false;
   selected.clear();
-  autofillStatus.clear();
-  plan.groups.forEach((group) => {
-    if (group.sendsEmail && !group.optional) {
-      selected.add(group.id);
-    }
-  });
+  sent.clear();
+  cards.clear();
 
   if (!plan.count) {
     document.getElementById("summary").textContent =
@@ -331,31 +414,32 @@ function renderPlan(state) {
     updateSendButton(state);
     return;
   }
-  const emailGroups = plan.groups.filter((group) => !group.optional);
-  const forms = plan.groups.filter((group) => group.formUrl).length;
-  let summary = `${plural(plan.count, "spam message")} analyzed → `
-    + `${plural(emailGroups.length, "report")} grouped by provider`;
-  if (forms) {
-    summary += `, ${forms} of which with a preferred web form`;
-  }
-  summary += ".";
-  if (plan.alreadyReported) {
-    summary += ` ${plural(plan.alreadyReported, "report")} already sent `
-      + "before were skipped.";
-  }
-  if (plan.orphans.length) {
-    summary += ` No abuse contact found for ${plural(plan.orphans.length,
-      "message")}.`;
-  }
-  if (plan.learned.length) {
-    summary += " Learned from their replies: "
-      + plan.learned.map((item) => `${item.email} `
-        + (item.status === "bounced" ? "bounces" : "only accepts its web form"))
-        .join(", ") + ".";
-  }
-  document.getElementById("summary").textContent = summary;
-  document.getElementById("groups").replaceChildren(
-    ...plan.groups.map(groupCard));
+  renderSummary(plan);
+  const byEmail = plan.groups.filter((group) => group.sendsEmail);
+  const byForm = plan.groups.filter((group) => !group.sendsEmail);
+  const lists = [
+    byEmail.length
+      ? groupList("Reports sent by e-mail",
+        "Ticked reports are sent when you click Send. Optional reports "
+        + "go to anti-spam organisations rather than to the provider.",
+        byEmail,
+        el("div", { class: "select-tools" },
+          button("Select all", () => selectAll(true), { class: "link" }),
+          button("Select none", () => selectAll(false), { class: "link" })))
+      : null,
+    byForm.length
+      ? groupList("Reports through a web form",
+        "These providers do not accept e-mail reports: they are not part "
+        + "of the sending.", byForm, null)
+      : null,
+  ].filter(Boolean);
+  document.getElementById("groups").replaceChildren(...lists);
+  plan.groups.forEach((group) => {
+    if (group.sendsEmail) {
+      setSelected(group, previous ? previous.has(group.id)
+        : !group.optional);
+    }
+  });
   updateSendButton(state);
 }
 
@@ -367,26 +451,63 @@ function renderResults(state) {
       + (result.parts > 1 ? ` (part ${result.part}/${result.parts})` : "")
       + (result.ok ? ": sent" : `: ${result.error}`),
   })));
+  // A report sent once cannot be selected again: no duplicate e-mails.
+  for (const result of state.results) {
+    const card = cards.get(result.groupId);
+    if (!result.ok || sent.has(result.groupId) || !card) {
+      continue;
+    }
+    sent.add(result.groupId);
+    selected.delete(result.groupId);
+    card.checkbox.checked = false;
+    card.checkbox.disabled = true;
+    card.node.classList.remove("selected");
+    card.node.classList.add("sent");
+    card.badges.prepend(el("span", { class: "badge ok", text: "Sent" }));
+  }
 }
 
 function updateSendButton(state) {
-  const button = document.getElementById("send");
-  const busy = state && (state.phase === "analysing"
-    || state.phase === "sending");
-  button.textContent = selected.size
-    ? `Send ${plural(selected.size, "report")}`
-    : "No report selected";
-  button.disabled = busy || selected.size === 0;
+  const bar = document.getElementById("sendbar");
+  const sendButton = document.getElementById("send");
+  const info = document.getElementById("selection");
+  const plan = state && state.plan;
+  bar.hidden = !plan || !plan.count;
+  if (bar.hidden) {
+    return;
+  }
+  const available = plan.groups.filter((group) => group.sendsEmail
+    && !sent.has(group.id)).length;
+  if (state.phase === "sending") {
+    sendButton.textContent = "Sending…";
+  } else {
+    sendButton.textContent = selected.size
+      ? `Send ${plural(selected.size, "report")}`
+      : "No report selected";
+  }
+  sendButton.disabled = isBusy(state) || selected.size === 0;
+  if (!available && sent.size) {
+    info.textContent = "All the e-mail reports are sent.";
+  } else if (!available) {
+    info.textContent = "No report to send by e-mail.";
+  } else {
+    info.textContent = `${selected.size} of ${plural(available,
+      "e-mail report")} selected.`;
+  }
+}
+
+function showCardStatus(groupId, text, kind) {
+  const card = cards.get(groupId);
+  if (card) {
+    card.status.hidden = false;
+    card.status.textContent = text;
+    card.status.className = `card-status ${kind}`;
+  }
 }
 
 function renderAutofill(state) {
-  for (const [groupId, status] of autofillStatus) {
-    const job = state.autofill[groupId];
-    status.hidden = !job;
-    if (job) {
-      status.textContent = job.message;
-      status.className = `autofill-status ${job.state}`;
-    }
+  for (const [groupId, job] of Object.entries(state.autofill || {})) {
+    showCardStatus(groupId, job.message, job.state);
   }
 }
 
@@ -397,9 +518,9 @@ function autofillRunning(state) {
 
 function render(state) {
   lastState = state;
-  renderStatus(state);
   renderPlan(state);
   renderResults(state);
+  renderStatus(state);
   renderAutofill(state);
 }
 
@@ -410,8 +531,7 @@ async function refresh() {
     const state = await api("/api/state");
     render(state);
     clearTimeout(pollTimer);
-    if (state.phase === "analysing" || state.phase === "sending"
-        || autofillRunning(state)) {
+    if (isBusy(state) || autofillRunning(state)) {
       pollTimer = setTimeout(refresh,
         state.phase === "sending" ? SEND_POLL_MS : POLL_MS);
     }
@@ -427,10 +547,12 @@ async function refresh() {
 async function analyse() {
   const limit = Number(document.getElementById("limit").value) || 50;
   const links = document.getElementById("links").checked;
+  actionErrors.analyse = "";
+  actionErrors.send = "";
   try {
     await api("/api/analyse", { limit, links });
   } catch (error) {
-    window.alert(error.message);
+    actionErrors.analyse = `Could not start the analysis: ${error.message}`;
   }
   refresh();
 }
@@ -448,6 +570,7 @@ async function send() {
   if (!window.confirm(question)) {
     return;
   }
+  actionErrors.send = "";
   try {
     await api("/api/send", {
       groups: [...selected],
@@ -455,19 +578,27 @@ async function send() {
       delete: remove,
     });
   } catch (error) {
-    window.alert(error.message);
+    actionErrors.send = `Could not send: ${error.message}`;
   }
+  document.getElementById("sending").scrollIntoView({ block: "nearest" });
   refresh();
 }
 
-async function startAutofill(group, button) {
-  button.disabled = true;
+async function startAutofill(group, target, mark) {
+  target.disabled = true;
   try {
     await api("/api/autofill", { group: group.id });
+    // The form replaces the e-mail: never report twice, and offer to
+    // record it once submitted.
+    if (group.sendsEmail && !sent.has(group.id)) {
+      setSelected(group, false);
+      updateSendButton(lastState);
+    }
+    mark.hidden = false;
   } catch (error) {
-    window.alert(error.message);
+    showCardStatus(group.id, error.message, "error");
   } finally {
-    setTimeout(() => { button.disabled = false; }, 3000);
+    setTimeout(() => { target.disabled = false; }, 3000);
   }
   refresh();
 }
@@ -481,13 +612,18 @@ async function markReported(group) {
   }
   try {
     await api("/api/mark", { groups: [group.id] });
+    keepSelection = true;
   } catch (error) {
-    window.alert(error.message);
+    showCardStatus(group.id, error.message, "error");
   }
   refresh();
 }
 
 async function quit() {
+  if (isBusy(lastState) && !window.confirm("An operation is still "
+      + "running. Quit Counter-Spam anyway?")) {
+    return;
+  }
   try {
     await api("/api/quit", {});
   } finally {

@@ -4,6 +4,39 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-11-01
+
+A usability pass on the web interface.
+
+### Added
+
+- A **send bar** that stays at the bottom of the window: the number of
+  selected reports and the *Send* button are always in reach, however long
+  the list is.
+- *Select all* / *Select none* for the e-mail reports.
+
+### Changed
+
+- The reports are split in two lists: those **sent by e-mail** and those
+  that need **a web form**, so it is clear what the *Send* button does.
+- Fewer buttons per provider: the main action stays visible, the others
+  (open the form, copy the report or the IPs, download the `.eml` files)
+  are grouped under *More options*.
+- For providers that prefer their web form, *Fill in the web form instead*
+  unticks the e-mail report (no double report) and offers *Mark as
+  reported*.
+- Selected reports are highlighted; marking a provider as reported keeps
+  the other choices.
+- Errors are shown in the page, next to the action, instead of pop-ups.
+- Clearer labels (*Messages to analyze*, *Analyze again*), bigger check
+  boxes, visible keyboard focus on every control, and a confirmation
+  before quitting while an operation is running.
+
+### Fixed
+
+- Reports already sent could be selected and sent a second time from the
+  same analysis: they are now marked *Sent* and locked.
+
 ## [2.0.0] - 2026-11-01
 
 A complete rewrite: Counter-Spam is now an Outlook-focused application with
@@ -72,4 +105,5 @@ secure sign-in, a grouped reporting strategy and a web interface.
 
 The original IMAP/WHOIS script, never tagged (last commit `50134da`).
 
+[2.1.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/50134da...v2.0.0
