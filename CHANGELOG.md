@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.1.1] - 2026-11-01
+
+### Changed
+
+- README rewritten around the 2.1 interface: installation, the three steps
+  (analyze, review, send) with light and dark screenshots, web forms, what
+  is reported to whom, every command-line option, and new FAQ entries.
+
 ## [2.1.0] - 2026-11-01
 
 A usability pass on the web interface.
@@ -105,5 +113,6 @@ secure sign-in, a grouped reporting strategy and a web interface.
 
 The original IMAP/WHOIS script, never tagged (last commit `50134da`).
 
+[2.1.1]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/50134da...v2.0.0
