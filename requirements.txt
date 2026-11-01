@@ -1,6 +1,3 @@
-smtplib
-webbrowser
-imaplib
-email
-ipaddress
-whois
+msal>=1.28
+msal-extensions>=1.2
+requests>=2.31

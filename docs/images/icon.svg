@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Counter-Spam">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5b8cff"/>
+      <stop offset="1" stop-color="#2b3fb8"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="shield" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff7a59"/>
+      <stop offset="1" stop-color="#e5383b"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tile -->
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <path d="M116 0h280a116 116 0 0 1 116 116v74C380 236 132 236 0 190v-74A116 116 0 0 1 116 0z" fill="url(#shine)"/>
+
+  <!-- Envelope (soft shadow, body, flap) -->
+  <rect x="78" y="160" width="296" height="212" rx="30" fill="#0b1650" opacity=".25"/>
+  <rect x="70" y="146" width="296" height="212" rx="30" fill="#ffffff"/>
+  <path d="M96 176l122 92a20 20 0 0 0 24 0l98-74" fill="none" stroke="#c7d3ff" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Shield (soft shadow, body, check mark) -->
+  <path d="M368 238l84 30v62c0 56-36 96-84 114-48-18-84-58-84-114v-62z" fill="#0b1650" opacity=".28" transform="translate(6 10)"/>
+  <path d="M368 238l84 30v62c0 56-36 96-84 114-48-18-84-58-84-114v-62z" fill="url(#shield)"/>
+  <path d="M368 238l84 30v62c0 56-36 96-84 114-48-18-84-58-84-114v-62z" fill="none" stroke="#ffffff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M330 338l26 26 48-54" fill="none" stroke="#ffffff" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "counter-spam"
+dynamic = ["version"]
+description = "Report the spam of an Outlook Junk folder to abuse desks."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+dependencies = [
+    "msal>=1.28",
+    "msal-extensions>=1.2",
+    "requests>=2.31",
+]
+
+[project.optional-dependencies]
+autofill = ["selenium>=4.20"]
+dev = ["pytest>=8", "pytest-cov>=5", "flake8>=7", "selenium>=4.20"]
+
+[project.scripts]
+counter-spam = "counter_spam.cli:main"
+
+[tool.setuptools]
+packages = ["counter_spam"]
+
+[tool.setuptools.dynamic]
+version = { attr = "counter_spam.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+counter_spam = ["web/*"]
