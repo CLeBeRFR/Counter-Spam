@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.3.0] - 2026-11-01
+
+### Added
+
+- **Stand-alone executables**: `counter-spam-windows-x64.exe`, and
+  binaries for macOS (Apple silicon) and Linux (x86-64). Nothing to
+  install, no Python needed; a double click opens the interface, and the
+  same file works as the command line. On Linux the encrypted token cache
+  (libsecret) is included.
+- **Release workflow** (GitHub Actions): every version tag runs the tests,
+  builds the three executables and publishes them in a GitHub release with
+  their SHA-256 checksums.
+
+### Changed
+
+- The README starts with the download links and explains the first launch
+  on each system (Windows SmartScreen, macOS Gatekeeper).
+- The help of the command line shows the real command name,
+  `counter-spam`.
+
+### Fixed
+
+- An element reached with the Tab key could hide behind the send bar at
+  the bottom of the window.
+
 ## [2.2.0] - 2026-11-01
 
 ### Changed
@@ -122,6 +147,7 @@ secure sign-in, a grouped reporting strategy and a web interface.
 
 The original IMAP/WHOIS script, never tagged (last commit `50134da`).
 
+[2.3.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.2.0...v2.3.0
 [2.2.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.0.0...v2.1.0

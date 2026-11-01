@@ -1,0 +1,131 @@
+# Builds the stand-alone executables and publishes them in a GitHub
+# release when a version tag (v1.2.3) is pushed.  "Run workflow" on the
+# Actions page builds them without publishing anything.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: flake8
+      - run: pytest -q
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            asset: counter-spam-windows-x64.exe
+          - os: macos-latest
+            asset: counter-spam-macos-arm64.tar.gz
+          # The oldest supported Ubuntu: the binary needs a glibc at least
+          # as recent as the one it was built with.
+          - os: ubuntu-22.04
+            asset: counter-spam-linux-x64.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python (Windows, macOS)
+        if: runner.os != 'Linux'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build tools (Windows, macOS)
+        if: runner.os != 'Linux'
+        run: pip install -r packaging/requirements.txt
+
+      # libsecret (encrypted tokens) comes with the system Python's
+      # PyGObject: build from a virtual environment that can see it.
+      - name: Build tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-gi gir1.2-secret-1
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install -r packaging/requirements.txt
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        run: pyinstaller --noconfirm packaging/counter-spam.spec
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          ./dist/counter-spam --version
+          ./dist/counter-spam --help > /dev/null
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir out
+          if [ "$RUNNER_OS" = Windows ]; then
+            cp dist/counter-spam.exe "out/${{ matrix.asset }}"
+          else
+            # An archive keeps the executable permission.
+            tar -C dist -czf "out/${{ matrix.asset }}" counter-spam
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: out/${{ matrix.asset }}
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Checksums and release notes
+        run: |
+          cd assets && sha256sum * > SHA256SUMS.txt && cd ..
+          version="${GITHUB_REF_NAME#v}"
+          # The section of this version in the changelog.
+          awk -v head="## [$version]" '
+            index($0, head) == 1 { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          cat >> notes.md <<'EOF'
+
+          ### Download
+
+          | System | File |
+          |---|---|
+          | Windows 10/11 (64-bit) | `counter-spam-windows-x64.exe` |
+          | macOS (Apple silicon) | `counter-spam-macos-arm64.tar.gz` |
+          | Linux (x86-64) | `counter-spam-linux-x64.tar.gz` |
+
+          No installation: download, then double-click (Windows, macOS) or
+          run `./counter-spam` (Linux). See the README for the first launch.
+          EOF
+          test -s notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Counter-Spam ${{ github.ref_name }}
+          body_path: notes.md
+          files: assets/*

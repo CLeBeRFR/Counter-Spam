@@ -41,6 +41,8 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* Keyboard focus never hides behind the sticky send bar (WCAG 2.4.11). */
+html { scroll-padding-bottom: 110px; }
 
 body {
   margin: 0;

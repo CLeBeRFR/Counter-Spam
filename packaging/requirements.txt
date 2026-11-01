@@ -1,0 +1,5 @@
+# Tools to build the stand-alone executables (see counter-spam.spec).
+.[autofill]
+pyinstaller>=6.10
+# Converts the PNG icon to .ico (Windows) and .icns (macOS) at build time.
+pillow>=10

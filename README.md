@@ -9,7 +9,7 @@
 [![Version](https://img.shields.io/github/v/tag/CLeBeRFR/Counter-Spam?sort=semver&label=version&color=2f5fd0)](CHANGELOG.md)
 [![Python](https://img.shields.io/badge/python-3.9%2B-2f5fd0?logo=python&logoColor=white)](https://www.python.org/)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2f5fd0)](#-install)
-[![Tests](https://img.shields.io/badge/tests-1426%20passing-2f9e44)](#-development)
+[![Tests](https://img.shields.io/badge/tests-1438%20passing-2f9e44)](#-development)
 [![Code style](https://img.shields.io/badge/code%20style-PEP%208-2f9e44)](https://peps.python.org/pep-0008/)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-6c757d)](LICENSE)
 
@@ -48,11 +48,51 @@ need to act.
 
 ## 🚀 Install
 
-**You need** Python 3.9 or later and an Outlook.com / Hotmail / Live or
-Microsoft 365 mailbox. Firefox, Chrome or Edge is only needed for the
-optional form filling.
+**You need** an Outlook.com / Hotmail / Live or Microsoft 365 mailbox.
+Firefox, Chrome or Edge is only needed for the optional form filling.
 
-<details open>
+### Download (recommended)
+
+One file, nothing to install, no Python needed:
+
+| System | Download |
+|---|---|
+| 🪟 **Windows** 10/11 (64-bit) | [**counter-spam-windows-x64.exe**](https://github.com/CLeBeRFR/Counter-Spam/releases/latest/download/counter-spam-windows-x64.exe) |
+| 🍎 **macOS** (Apple silicon) | [**counter-spam-macos-arm64.tar.gz**](https://github.com/CLeBeRFR/Counter-Spam/releases/latest/download/counter-spam-macos-arm64.tar.gz) |
+| 🐧 **Linux** (x86-64, Ubuntu 22.04 or later) | [**counter-spam-linux-x64.tar.gz**](https://github.com/CLeBeRFR/Counter-Spam/releases/latest/download/counter-spam-linux-x64.tar.gz) |
+
+Then start it:
+
+- **Windows**: double-click `counter-spam-windows-x64.exe`. The first time,
+  Windows may show *"Windows protected your PC"*: click **More info**, then
+  **Run anyway** (the program is not signed with a paid certificate).
+- **macOS**: double-click the archive, then the `counter-spam` file. The
+  first time, macOS refuses to open it: go to **System Settings → Privacy &
+  Security** and click **Open Anyway**.
+- **Linux**: extract the archive and run it from a terminal:
+
+  ```bash
+  tar -xzf counter-spam-linux-x64.tar.gz
+  ./counter-spam
+  ```
+
+A small console window stays open while Counter-Spam runs and the
+interface opens in your browser. Closing the window, or clicking **Quit**
+in the interface, stops it. The same file is also the
+[command line](#%EF%B8%8F-command-line): `counter-spam-windows-x64.exe
+analyze`, `./counter-spam report`...
+
+**First launch:** your browser opens on the Microsoft sign-in page. Sign in
+with your usual account and accept the *read your mail* permission. That's
+all: no account to create, nothing to configure. The sign-in is remembered,
+encrypted, until you run `counter-spam logout`.
+
+All the versions and their checksums (`SHA256SUMS.txt`) are on the
+[releases page](https://github.com/CLeBeRFR/Counter-Spam/releases).
+
+### From source (Python 3.9 or later)
+
+<details>
 <summary><b>Windows (PowerShell)</b></summary>
 
 ```powershell
@@ -93,11 +133,6 @@ pip install ".[autofill]"
 counter-spam gui
 ```
 </details>
-
-**First launch:** your browser opens on the Microsoft sign-in page. Sign in
-with your usual account and accept the *read your mail* permission. That's
-all: no account to create, nothing to configure. The sign-in is remembered,
-encrypted, until you run `counter-spam logout`.
 
 > [!TIP]
 > Installed without the `[autofill]` extra (`pip install .`), everything
@@ -314,6 +349,25 @@ python docs/make_screenshots.py    # regenerate the screenshots from demo data
 ```
 
 <details>
+<summary><b>Building the executables</b></summary>
+
+Pushing a version tag (`git tag -a v1.2.3 && git push origin v1.2.3`)
+runs the [Release workflow](.github/workflows/release.yml): tests, then
+the Windows, macOS and Linux executables are built with PyInstaller and
+published in a GitHub release with their checksums. To build one locally,
+for the current OS:
+
+```bash
+pip install -r packaging/requirements.txt
+pyinstaller packaging/counter-spam.spec   # → dist/counter-spam(.exe)
+```
+
+On Linux, build from a virtual environment created with
+`--system-site-packages` after `sudo apt install python3-gi
+gir1.2-secret-1`, so that the encrypted token cache is included.
+</details>
+
+<details>
 <summary><b>Project layout</b></summary>
 
 | Module | Role |
@@ -329,6 +383,8 @@ python docs/make_screenshots.py    # regenerate the screenshots from demo data
 | `counter_spam/autofill.py` | Automatic filling of abuse web forms |
 | `counter_spam/webui.py`, `web/` | Local web interface |
 | `counter_spam/cli.py` | Command line |
+| `counter_spam/launcher.py` | Entry point of the executables (double click opens the interface) |
+| `packaging/` | PyInstaller recipe of the executables |
 </details>
 
 <details>

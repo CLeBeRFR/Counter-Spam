@@ -319,7 +319,7 @@ def _port(value: str) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="counter_spam",
+        prog="counter-spam",
         description="Report the spam of your Outlook Junk folder to the "
                     "abuse desks of the providers involved.")
     parser.add_argument("--version", action="version",

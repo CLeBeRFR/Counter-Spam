@@ -143,3 +143,8 @@ def test_filling_the_form_instead_unticks_the_email():
     autofill = autofill[:autofill.index("\n}\n")]
     assert "setSelected(group, false)" in autofill
     assert "mark.hidden = false" in autofill
+
+
+def test_keyboard_focus_is_not_hidden_by_the_send_bar():
+    assert re.search(r"html \{ scroll-padding-bottom: \d+px; \}",
+                     read("style.css"))
