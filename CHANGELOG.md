@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project
 uses [Semantic Versioning](https://semver.org/).
 
+## [2.2.0] - 2026-11-01
+
+### Changed
+
+- **License**: Counter-Spam is now distributed under the
+  [PolyForm Noncommercial License 1.0.0](LICENSE) instead of MIT. Free for
+  personal and non-commercial use; commercial use is not allowed. Versions
+  up to 2.1.1 remain available under the MIT license.
+
 ## [2.1.1] - 2026-11-01
 
 ### Changed
@@ -113,6 +122,7 @@ secure sign-in, a grouped reporting strategy and a web interface.
 
 The original IMAP/WHOIS script, never tagged (last commit `50134da`).
 
+[2.2.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.1.1...v2.2.0
 [2.1.1]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.1.0...v2.1.1
 [2.1.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/CLeBeRFR/Counter-Spam/compare/50134da...v2.0.0

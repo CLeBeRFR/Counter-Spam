@@ -306,7 +306,7 @@ class TestMoreCommands:
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["--version"])
         assert excinfo.value.code == 0
-        assert "2.1.1" in capsys.readouterr().out
+        assert "2.2.0" in capsys.readouterr().out
 
 
 class TestHelpers:

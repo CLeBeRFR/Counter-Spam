@@ -11,7 +11,7 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-2f5fd0)](#-install)
 [![Tests](https://img.shields.io/badge/tests-1426%20passing-2f9e44)](#-development)
 [![Code style](https://img.shields.io/badge/code%20style-PEP%208-2f9e44)](https://peps.python.org/pep-0008/)
-[![License](https://img.shields.io/github/license/CLeBeRFR/Counter-Spam?color=6c757d)](LICENSE)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-6c757d)](LICENSE)
 
 [Install](#-install) ·
 [Use it](#%EF%B8%8F-use-it-in-3-steps) ·
@@ -350,5 +350,20 @@ work too. Never create a client secret: a desktop app cannot keep one.
 
 ## 📄 License and changes
 
-[MIT](LICENSE). Use it responsibly: only report messages you actually
-received. What changed in each version is in the [changelog](CHANGELOG.md).
+Counter-Spam is free for **non-commercial use only**, under the
+[PolyForm Noncommercial License 1.0.0](LICENSE):
+
+- ✅ Personal use, study, hobby projects, and use by charities, schools,
+  public research, public safety or health organisations and government
+  institutions.
+- ✅ Changing it and sharing it, with the license and its *Required
+  Notice* line, for the same purposes.
+- ❌ Any commercial use, such as using it in or for a business, selling it,
+  or including it in a paid product or service.
+
+For a commercial license, [open an issue](https://github.com/CLeBeRFR/Counter-Spam/issues).
+Versions up to 2.1.1 were released under the MIT license and remain
+available under its terms.
+
+Use it responsibly: only report messages you actually received. What
+changed in each version is in the [changelog](CHANGELOG.md).

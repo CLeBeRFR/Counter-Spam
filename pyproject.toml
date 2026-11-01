@@ -7,7 +7,7 @@ name = "counter-spam"
 dynamic = ["version"]
 description = "Report the spam of an Outlook Junk folder to abuse desks."
 readme = "README.md"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 requires-python = ">=3.9"
 dependencies = [
     "msal>=1.28",
